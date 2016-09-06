@@ -51,9 +51,8 @@ class AlignmentScoringProvider {
 
                 pw.println(index + "\tgap\tNA\tNA\t" + info.scoring.gapPenalty)
                 pw.println(index + "\tthreshold\tNA\tNA\t" + info.scoreThreshold)
-                info.positionWeights.eachWithIndex { double value, int i ->
-                    pw.println(index + "\tposition_weight\t" + i + "\tNA\t" + value)
-                }
+                pw.println(index + "\tposition_sigma\tNA\tNA\t" + info.positionalSigma)
+                pw.println(index + "\tposition_mu\tNA\tNA\t" + info.positionalMu)
             }
         }
     }
@@ -69,7 +68,7 @@ class AlignmentScoringProvider {
             [(colName): header.findIndexOf { colName.equalsIgnoreCase(it) }]
         }
 
-        if ( headerIndices.values().any { it < 0 }) {
+        if (headerIndices.values().any { it < 0 }) {
             throw new RuntimeException("Failed to parse scoring file $fileName, critical columns are missing")
         }
 
@@ -88,7 +87,10 @@ class AlignmentScoringProvider {
             throw new RuntimeException("Scoring with id '$scoringId' is missing in $fileName")
         }
 
-        def scoringMatrix = [], positionWeights = [], gapScore = Integer.MAX_VALUE, threshold = Float.MAX_VALUE
+        def scoringMatrix = [], gapScore = Integer.MAX_VALUE,
+            positionSigma = Float.MAX_VALUE,
+            positionMu = Float.MAX_VALUE,
+            threshold = Float.MAX_VALUE
 
         lines.each { splitLine ->
             switch (splitLine[parameterCol].toLowerCase()) {
@@ -102,8 +104,11 @@ class AlignmentScoringProvider {
                 case "threshold":
                     threshold = splitLine[valueCol].toFloat()
                     break
-                case "position_weight":
-                    positionWeights[splitLine[fromCol].toInteger()] = splitLine[valueCol].toFloat()
+                case "position_sigma":
+                    positionSigma = splitLine[valueCol].toFloat()
+                    break
+                case "position_mu":
+                    positionMu = splitLine[valueCol].toFloat()
                     break
             }
         }
@@ -123,12 +128,12 @@ class AlignmentScoringProvider {
         // Check that we've loaded everything
 
         assert scoringMatrix.every { it != null } && scoringMatrix.size() == N * N
-        assert positionWeights.every { it != null } &&
-                positionWeights.size() % 2 != 0
         assert gapScore < 0
         assert threshold != Float.MAX_VALUE
+        assert positionSigma > 0 && positionSigma != Float.MAX_VALUE
+        assert positionMu >= -1 && positionMu <= 1
 
         new VdjdbAlignmentScoring(new LinearGapAlignmentScoring(ALPHABET, scoringMatrix as int[],
-                gapScore), positionWeights as float[], threshold)
+                gapScore), positionSigma, positionMu, threshold)
     }
 }
