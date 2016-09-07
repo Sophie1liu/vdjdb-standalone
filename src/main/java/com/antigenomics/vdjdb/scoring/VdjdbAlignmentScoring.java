@@ -26,40 +26,28 @@ import static com.milaboratory.core.mutations.Mutation.getPosition;
 
 public class VdjdbAlignmentScoring implements AlignmentScoring {
     private final LinearGapAlignmentScoring scoring;
-    private final float positionalSigma, positionalMu;
+    private final float[] positionWeights;
     private float scoreThreshold;
 
     public VdjdbAlignmentScoring(LinearGapAlignmentScoring scoring,
-                                 float positionalSigma, float positionalMu,
+                                 float[] positionWeights,
                                  float scoreThreshold) {
         this.scoring = scoring;
-        this.positionalSigma = positionalSigma;
-        this.positionalMu = positionalMu;
+        this.positionWeights = positionWeights;
         this.scoreThreshold = scoreThreshold;
     }
 
-    private float getPositionWeight(int pos, float center, boolean even) {
-        if (even) {
-            float x1 = (pos - 0.5f) / center - 1, x2 = (pos + 0.5f) / center - 1;
-            return 0.5f * (getPositionalWeight(x1) + getPositionalWeight(x2));
-        } else {
-            return getPositionalWeight(pos / center - 1);
-        }
-    }
-
-    private float getPositionalWeight(float x) {
-        return (float) Math.exp(-(x - positionalMu) * (x - positionalMu) / 2 / positionalSigma / positionalSigma);
+    private float getPositionWeight(int pos, int cdr3Length) {
+        int bin = (int) (pos / (float) (cdr3Length - 1) * (positionWeights.length - 1));
+        return positionWeights[bin];
     }
 
     @Override
     public float computeBaseScore(Sequence reference) {
-        boolean even = reference.size() % 2 == 0;
-        float center = reference.size() / 2.0f;
         float score = 0;
-
         for (int i = 0; i < reference.size(); ++i) {
             byte aa = reference.codeAt(i);
-            score += scoring.getScore(aa, aa) * getPositionWeight(i, center, even);
+            score += scoring.getScore(aa, aa) * getPositionWeight(i, reference.size());
         }
         return score;
     }
@@ -71,8 +59,6 @@ public class VdjdbAlignmentScoring implements AlignmentScoring {
 
     @Override
     public float computeScore(Mutations mutations, float baseScore, int refLength) {
-        boolean even = refLength % 2 == 0;
-        float center = refLength / 2.0f;
         float score = baseScore;
 
         for (int i = 0; i < mutations.size(); ++i) {
@@ -88,22 +74,18 @@ public class VdjdbAlignmentScoring implements AlignmentScoring {
                 deltaScore -= scoring.getScore(from, from);
             }
 
-            score += deltaScore * getPositionWeight(i, center, even);
+            score += deltaScore * getPositionWeight(getPosition(mutation), refLength);
         }
 
-        return baseScore + score;
+        return score;
     }
 
     public LinearGapAlignmentScoring getScoring() {
         return scoring;
     }
 
-    public float getPositionalSigma() {
-        return positionalSigma;
-    }
-
-    public float getPositionalMu() {
-        return positionalMu;
+    public float[] getPositionWeights() {
+        return positionWeights;
     }
 
     @Override
@@ -114,6 +96,6 @@ public class VdjdbAlignmentScoring implements AlignmentScoring {
     @Override
     public AlignmentScoring withScoreThreshold(float scoreThreshold) {
         return new VdjdbAlignmentScoring(scoring,
-                positionalSigma, positionalMu, scoreThreshold);
+                positionWeights, scoreThreshold);
     }
 }
