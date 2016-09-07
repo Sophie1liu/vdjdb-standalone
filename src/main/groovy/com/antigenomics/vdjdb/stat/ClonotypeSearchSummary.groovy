@@ -102,6 +102,6 @@ class ClonotypeSearchSummary {
     }
 
     Map<String, ClonotypeCounter> getCounters() {
-        columnSequenceCounters.values().first()
+        columnSequenceCounters.values().empty ? new HashMap<>() : columnSequenceCounters.values().first()
     }
 }
