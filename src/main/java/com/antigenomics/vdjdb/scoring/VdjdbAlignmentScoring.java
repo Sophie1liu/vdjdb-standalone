@@ -37,17 +37,19 @@ public class VdjdbAlignmentScoring implements AlignmentScoring {
         this.scoreThreshold = scoreThreshold;
     }
 
-    private float getPositionWeight(int pos, int cdr3Length) {
-        int bin = (int) (pos / (float) (cdr3Length - 1) * (positionWeights.length - 1));
+    private float getPositionWeight(int pos, float factor) {
+        int bin = (int) (pos * factor);
         return positionWeights[bin];
     }
 
     @Override
     public float computeBaseScore(Sequence reference) {
         float score = 0;
+        float factor = (positionWeights.length - 1) / (float) (reference.size() - 1);
+
         for (int i = 0; i < reference.size(); ++i) {
             byte aa = reference.codeAt(i);
-            score += scoring.getScore(aa, aa) * getPositionWeight(i, reference.size());
+            score += scoring.getScore(aa, aa) * getPositionWeight(i, factor);
         }
         return score;
     }
@@ -60,6 +62,7 @@ public class VdjdbAlignmentScoring implements AlignmentScoring {
     @Override
     public float computeScore(Mutations mutations, float baseScore, int refLength) {
         float score = baseScore;
+        float factor = (positionWeights.length - 1) / (float) (refLength - 1);
 
         for (int i = 0; i < mutations.size(); ++i) {
             int mutation = mutations.getMutation(i);
@@ -74,7 +77,7 @@ public class VdjdbAlignmentScoring implements AlignmentScoring {
                 deltaScore -= scoring.getScore(from, from);
             }
 
-            score += deltaScore * getPositionWeight(getPosition(mutation), refLength);
+            score += deltaScore * getPositionWeight(getPosition(mutation), factor);
         }
 
         return score;
